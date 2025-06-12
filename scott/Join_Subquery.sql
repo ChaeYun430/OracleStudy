@@ -85,15 +85,82 @@ SELECT * FROM EMP WHERE SAL > (SELECT SAL FROM EMP WHERE ENAME = 'JONES');
 --3 서브쿼리의 SELECT절에 명시한 열은 메인쿼리의 비교 대상과 같은 자료형과 같은 개수로 지정해야 함.
 --4. 서브쿼리에 있는 SELECT문의 결과 행 수는 함께 사용하는 메인쿼리의 연산자 종류와 호환 가능해야 함.
 
---단일행 서브쿼리
+--단일행 서브쿼리(single-row)
 --단일행 연산자: 대소 비교 연산자, 동등 비교 연산자
 SELECT * FROM EMP WHERE HIREDATE < (SELECT HIREDATE FROM EMP WHERE ENAME = 'SCOTT');--서브쿼리 결과값이 날짜형 데이터일 때도 사용 가능
 SELECT E.EMPNO, E.ENAME, E.JOB, E.SAL, D.DEPTNO, D.DNAME, D.LOC FROM EMP E, DEPT D WHERE E.DEPTNO = D.DEPTNO AND E.DEPTNO = 20 AND E.SAL > (SELECT AVG(SAL) FROM EMP);--서브쿼리에서 특정 함수를 사용한 결과값이 하나일 때
 
---다중행 서브쿼리
+--다중행 서브쿼리(multople-row)
 --다중행 연산자: 
 --IN: 메인쿼리의 데이터가 서브쿼리의 결과 중 하나라도 일치한 데이터가 있다면 참
+SELECT * FROM EMP WHERE DEPTNO IN (20, 30)
+
+SELECT MAX(SAL), DEPTNO FROM EMP GROUP BY DEPTNO
+SELECT * FROM EMP WHERE SAL IN (SELECT MAX(SAL) FROM EMP GROUP BY DEPTNO)
+
 --ANY, SOME: 메인쿼리의 조건식을 만족하는 서브쿼리의 결과가 하나 이상이면 참
+SELECT * FROM EMP WHERE SAL = ANY (SELECT MAX(SAL) FROM EMP GROUP BY DEPTNO)
+SELECT * FROM EMP WHERE SAL = SOME (SELECT MAX(SAL) FROM EMP GROUP BY DEPTNO)
+--하나의 값에 의해 영향을 받음
+SELECT SAL FROM EMP WHERE DEPTNO = 30
+SELECT * FROM EMP WHERE SAL < ANY(SELECT SAL FROM EMP WHERE DEPTNO = 30) ORDER BY SAL, EMPNO
+SELECT * FROM EMP WHERE SAL < (SELECT MAX(SAL) FROM EMP WHERE DEPTNO = 30) ORDER BY SAL, EMPNO
+SELECT * FROM EMP WHERE SAL > ANY(SELECT SAL FROM EMP WHERE DEPTNO = 30) ORDER BY SAL, EMPNO
+
 --ALL: 메인쿼리의 조건식을 서브쿼리의 결과의 모두가 만족하면 참
---EXISTS: 서브쿼리의 결과가 존재하면(즉, 행이 1개 이상이면) 참
+--전체 값의 영향을 받음
+SELECT * FROM EMP WHERE SAL < ALL (SELECT SAL FROM EMP WHERE DEPTNO = 30)
+SELECT * FROM EMP WHERE SAL > ALL (SELECT SAL FROM EMP WHERE DEPTNO = 30)
+
+--EXISTS: 서브쿼리의 결과가 존재하면(즉, 행이 1개 이상이면) 조건식이 모두 참
+--활용: 특정 서브커리 결과 값의 존재 유무를 통해 메인쿼리의 데이터 노출 여부를 결정해야 할 때 간혹 사용
+SELECT * FROM EMP WHERE EXISTS (SELECT DNAME FROM DEPT WHERE DEPTNO = 10)
+SELECT * FROM EMP WHERE EXISTS (SELECT DNAME FROM DEPT WHERE DEPTNO = 50)
+
+
+--다중열 서브쿼리(multiple-column) //복수열 서브쿼리
+--메인쿼리에 비교할 열을 괄호로 묶어 명시하고
+--서브쿼리에서는 괄호로 묶은 데이터와 같은 자료형 데이터를 SELECT절에 명시
+SELECT * FROM EMP WHERE (DEPTNO, SAL) IN (SELECT DEPTNO, MAX(SAL) FROM EMP GROUP BY DEPTNO)
+
+--인라인 뷰
+--FROM절에 사용하는 서브쿼리
+--특정 테이블 전체 데이터가 아닌 
+--SELECT문을 통해 일부 데이터를 먼저 추출해 온 후 
+--별칭을 주어 사용
+SELECT E10.EMPNO, E10.ENAME, E10.DEPTNO, D.DNAME, D.LOC
+	FROM (SELECT * FROM EMP WHERE DEPTNO = 10) E10,
+		 (SELECT * FROM DEPT) D
+		 WHERE E10.DEPTNO = D.DEPTNO
+--활용1: 직접 테이블을 명시하여 사용하기에는 테이블 내 데이터 규모가 너무 클 때
+--활용2: 현재 작업에 불필요한 열이 너무 많아 일부 행과 열만 사용하고자 할 때
+
+--WITH 절
+--메인쿼리가 될 SELECT문 안에서 사용할 서브쿼리와 별칭을 먼저 지정
+WITH [별칭] AS [SELECT문], ... 
+	SELECT [VALUE] FROM [별칭]
+	
+WITH 
+E10 AS (SELECT * FROM EMP WHERE DEPTNO = 10),
+D AS (SELECT * FROM DEPT)
+SELECT E10.EMPNO, E10.ENAME, E10.DEPTNO, D.DNAME, D.LOC FROM E10, D
+	WHERE E10.DEPTNO = D.DEPTNO
+	
+--상호연관 서브쿼리(correlated)
+--메인쿼리에 사용한 데이터를 서브쿼리에서 사용하고 서브쿼리의 결과 값을 다시 메인쿼리로 돌려주는 방식
+--성능을 떨어뜨리고 사용빈도가 높지 않다.
+SELECT * FROM EMP E1 WHERE SAL > (SELECT MIN(SAL) FROM EMP E2 WHERE E2.DEPTNO = E1.DEPTNO)
+	ORDER BY DEPTNO, SAL
+	
+--스칼라 서브쿼리(scalar)
+--서브쿼리가 SELECT절의 하나의 열 영역으로서 결과 출력 가능
+--SELECT절에 명시하는 서브쿼리는 반드시 하나의 결과만 반환하도록 작성해주어야 한다. 
+--활용: 주 테이블의 값을 타 테이블의 값과 비교하는 조건식을 작성하고 싶을 때
+SELECT EMPNO, ENAME, JOB, SAL, 
+		(SELECT GRADE FROM SALGRADE WHERE E.SAL BETWEEN LOSAL AND HISAL) AS SALGRADE, 
+		DEPTNO,
+		(SELECT DNAME FROM DEPT WHERE E.DEPTNO = DEPT.DEPTNO) AS DNAME
+		FROM EMP E
+
+
 

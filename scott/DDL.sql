@@ -52,7 +52,7 @@ SELECT * FROM EMP_ALTER;
 --데이터에 문제가 생기지 않는 범위 내에서 허용
 --길이를 줄이거나 기존 열의 자료형을 다름 자료형으로 변경하는 것은 저장된 데이터 상태에 따라 결정된다.
 ALTER TABLE EMP_ALTER MODIFY EMPNO NUMBER(5);
-DESC EMP_ALTER;
+DESC EMP_ALTER
 
 --DROP COLUMN 열이름: 특정 열 삭제(내부 데이터도 함께)
 ALTER TABLE EMP_ALTER DROP COLUMN TEL;
